@@ -15,6 +15,8 @@
 #define LECTURA 0
 #define ESCRITURA 1
 
+pthread_mutex_t mutex;
+
 
 //Función que lee una línea de un archivo de texto desde un archivo
 //Entrada: Puntero al archivo del cuál se va a leer
@@ -142,10 +144,11 @@ void writeFile(double* informacionHijos, char* nombreArchivo, int numDisco){
 //Entrada:
 //Salida: Nada, vacío
 
-void * inicializarHebra(void * x)
+void * inicializarHebra()
 {
-  int *i = (int *)x;
-  printf("Se ha creado la hebra numero: %i\r\n", *i);
+  printf("Hebra esperando hacer algo...\r\n");
+  pthread_mutex_lock(&mutex);
+  printf("Hebra haciendo algo\r\n");
 }
 
 int main(int argc, char* argv[])
@@ -214,17 +217,16 @@ int main(int argc, char* argv[])
     printf("Iniciando procesamiento con %i discos...\n", discCant);
 
     int i;
-    int status = 0;
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
-    pthread_t * hebras = (pthread_t *)malloc(sizeof(pthread_t)*discCant);
+    pthread_t threads[discCant];
+    pthread_mutex_init(&mutex, NULL);
 
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-      pthread_create(&hebras[i], NULL, inicializarHebra, &i); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
+      pthread_create(&threads[i], NULL, inicializarHebra, NULL); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
+      //printf("Mutex %i: %i", i);
     }
-    //EN ESTE PUNTO SE HAN CREADO TODOS LOS HIJOS Y SE HAN COMUNICADO MEDIANTE PIPES
-    //TEST: enviando datos a un hijo
-    //read(pipesLectura[0][LECTURA],buff,100);
+    
     //Datoshijos:
     //0. media real
     //1. imaginaria
