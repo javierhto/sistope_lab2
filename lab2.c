@@ -216,10 +216,13 @@ int main(int argc, char* argv[])
     //DEBUG
     printf("Iniciando procesamiento con %i discos...\n", discCant);
 
-    int i;
+    
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
     pthread_t threads[discCant];
+    //Se inicializa un mutex
     pthread_mutex_init(&mutex, NULL);
+
+    int i;
 
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
