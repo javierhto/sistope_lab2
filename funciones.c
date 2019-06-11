@@ -6,7 +6,7 @@ char* readLine(FILE* file){
   //Asignación de memoria para las cadenas
   char* line = (char*)malloc(sizeof(char)*128);
   char* ch = (char*)malloc(sizeof(char)*64);
-  
+
   int read;
   while((read = fread(ch, sizeof(char), 1, file)) == 1){
     if(ch[0] == 10){
@@ -19,13 +19,23 @@ char* readLine(FILE* file){
       i++;
     }
   }
-  if(line[i] == 10){
-    line[i] = '\0';
+  unsigned int lineLength = strlen(line);
+  int j;
+  char* fixedLine = (char*)malloc(sizeof(char)*128);
+  for(j = 0; j < lineLength; j++){
+    if(line[j] == 10 || line[j] == 13){
+      fixedLine[j] = '\0';
+    }
+    else{
+      fixedLine[j] = line[j];
+    }
   }
   if(read == 0){
-    line[0] = '\0';
+    fixedLine[0] = '\0';
   }
-  return line;
+  free(ch);
+  free(line);
+  return fixedLine;
 }
 
 //Funnción que retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
@@ -223,7 +233,7 @@ char* readLine(FILE* file){
   //Asignación de memoria para las cadenas
   char* line = (char*)malloc(sizeof(char)*128);
   char* ch = (char*)malloc(sizeof(char)*64);
-  
+
   int read;
   while((read = fread(ch, sizeof(char), 1, file)) == 1){
     if(ch[0] == 10){
