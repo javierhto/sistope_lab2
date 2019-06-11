@@ -131,11 +131,15 @@ int main(int argc, char* argv[])
       printf("El nombre del archivo de entrada no puede ser igual al archivo de salida.\r\nIntente nuevamente.\r\n");
       exit(0);
     }
+    if(tamanoBuffer < 1){
+      printf("El tamano del buffer no puede ser menor a 1.\r\nIntente nuevamente.\r\n");
+      exit(0);
+    }
 
     //DEBUG
-    printf("Iniciando procesamiento con %i discos...\n", discCant);
+    printf("Iniciando procesamiento con %i discos...\r\n", discCant);
 
-    
+
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
     pthread_t threads[discCant];
     //se crea un arreglo de monitores
@@ -152,6 +156,7 @@ int main(int argc, char* argv[])
       monitor[i] = inicializarMonitor()  
       //printf("Mutex %i: %i", i);
     }
+
 
     printf("\n\n##### Fin de la ejecucion PADRE #####\n\n");
     return 0;
