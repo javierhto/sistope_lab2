@@ -33,7 +33,7 @@ typedef struct Visibilidad
 }Visibilidad;
 
 //Definición de variables globales
-pthread_mutex_t mutex;
+//pthread_mutex_t mutex;
 int discCant;
 int discWidth;
 int bFlag;
@@ -57,11 +57,17 @@ Monitor * inicializarMonitor()
 //Función que inciializa la ejecuión de una hebra
 //Entrada:
 //Salida: Nada, vacío
-void * obtenerVisibilidades()
+void * hebra()
 {
-  printf("Hebra esperando hacer algo...\r\n");
-  pthread_mutex_lock(&mutex);
-  printf("Hebra haciendo algo\r\n");
+    int cantidadVisibilidades = 0;
+    int 
+    while(1)
+    {
+        printf("Hebra leyendo datos de la hebra principal...\r\n");
+        if()
+        printf("Hebra haciendo algo\r\n");
+    }
+  
 }
 
 int main(int argc, char* argv[])
@@ -132,14 +138,18 @@ int main(int argc, char* argv[])
     
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
     pthread_t threads[discCant];
+    //se crea un arreglo de monitores
+    Monitor * monitor = (Monitor*)malloc(sizeof(Monitor)*discCant);
+
     //Se inicializa un mutex
-    pthread_mutex_init(&mutex, NULL);
+    //pthread_mutex_init(&mutex, NULL);
 
     int i;
 
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-      pthread_create(&threads[i], NULL, obtenerVisibilidades, NULL); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
+      pthread_create(&threads[i], NULL, hebra, NULL); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
+      monitor[i] = inicializarMonitor()  
       //printf("Mutex %i: %i", i);
     }
 
