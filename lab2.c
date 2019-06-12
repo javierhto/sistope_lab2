@@ -40,6 +40,7 @@ typedef struct VisibilidadHebra
   double real;
   double imaginaria;
   double ruido;
+  int totalVisibilidades;
 }VisibilidadHebra;
 
 typedef struct Buffer
@@ -111,16 +112,18 @@ VisibilidadHebra * inicializarDataHebras()
     dataHebra->real = 0;
     dataHebra->imaginaria = 0;
     dataHebra->ruido = 0;
+    dataHebra->totalVisibilidades = 0;
     return dataHebra;
 }
 
-void procesarDatosBuffer(VisibilidadHebra *vh, Buffer *b){
+void procesarDatosBuffer(double real, double imaginaria, double ruido, double totalVisibilidades, Buffer *b){
     int i;
     for(i = 0; i < b->cantidad; i++){
       double* data = obtenerDatosVisibilidad(b->data[i]);
-      vh->real = vh-> real + data[2];
-      vh->imaginaria = vh->imaginaria + data[3];
-      vh->ruido = vh->ruido + data[4];
+      real = real + data[2];
+      imaginaria = imaginaria + data[3];
+      ruido = ruido + data[4];
+      totalVisibilidades++;
     }
 }
 
@@ -143,7 +146,7 @@ void anadirDato(Buffer * b, char * line)
 void vaciarBuffer(Buffer * b)
 {
     int i;
-    for(i=0; i<tamanoBuffer; i++)
+    for(i=0; i<b->cantidad; i++)
     {
         free(b->data[i]);
     }
@@ -168,12 +171,11 @@ Monitor * inicializarMonitor()
 //Salida: Nada, vacío
 void * hebra(void * buffer)
 {
-    //Datos necesaarios para el cálculo
-    double mediaReal = 0;
-    double mediaImaginaria = 0;
+    //Casteo de los datos para la hebra.
+    double real = 0;
+    double imaginaria = 0;
     double ruido = 0;
     int totalVisibilidades = 0;
-    int cantidadVisibilidades = 0;
 
     //Casteo del buffer entregado
     Buffer * bufferLocal = (Buffer*)buffer;
@@ -182,7 +184,7 @@ void * hebra(void * buffer)
     {
         if(bufferLocal->cantidad == tamanoBuffer)
         {
-            printf("Se leeran los datos del buffer...\r\n");
+            procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
             vaciarBuffer(bufferLocal);
         }
     }
@@ -301,8 +303,6 @@ int main(int argc, char* argv[])
          //Y SE LES PIDE LOS DATOS CALCULADOS.
          for(j = 0; j < discCant; j++){
            buffers[j]->estado = CERRADO;
-           procesarDatosBuffer(informacionhebras[j], buffers[j]);
-           vaciarBuffer(buffers[j]);
          }
          //PLAN: RECIBIR LOS DATOS DE LOS HIJOS Y LUEGO ALMACENARLO EN UN ARCHIVO.
        }
@@ -314,15 +314,7 @@ int main(int argc, char* argv[])
         printf("Enviando dato a disco: %i\r\n", disc);
         if(disc >= 0)
         {
-          if(buffers[disc]->cantidad == tamanoBuffer || buffers[disc]->estado == CERRADO){
-            //TRABAJO LA INFORMACION DEL BUFFER LLENO.
-            procesarDatosBuffer(informacionhebras[disc], buffers[disc]);
-            vaciarBuffer(buffers[disc]);
             anadirDato(buffers[disc], line);
-          }
-          else{
-            anadirDato(buffers[disc], line);
-          }
         }
         //Esto permite hacer conocer al usuario que linea del archivo el programa esta leyendo.
         //printf("\b\b\b\b\b\b\b\b\b");
