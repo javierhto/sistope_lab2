@@ -28,13 +28,19 @@ typedef struct Monitor
 
 typedef struct Visibilidad
 {
-  int u;
-  int v;
-  int real;
-  int imag;
-  int ruido;
-  struct Visibilidad * siguiente;
+  int hebra;
+  double mediaReal;
+  double mediaImaginaria;
+  double ruidoTotal;
+  double potencia;
 }Visibilidad;
+
+typedef struct VisibilidadHebra
+{
+  double real;
+  double imaginaria;
+  double ruido;
+}VisibilidadHebra;
 
 typedef struct Buffer
 {
@@ -50,6 +56,35 @@ int discWidth;
 int bFlag;
 int tamanoBuffer;
 
+double* obtenerDatosVisibilidad(char* visibilidad){
+    int i; //DECLARACION DE i PARA EL CICLO FOR.
+    int j = 0; //DECLARACION DE j PARA POSICIONAR DOUBLE EN ARREGLO.
+    int k = 0; //DECLARACION DE k PARA POSICIONAR CHAR EN ARREGLO.
+    int len = strlen(visibilidad); //OBTENGO EL LARGO DEL STRING RECIBIDO.
+    int arrayLength = 32;
+    double* data = (double*)malloc(len*sizeof(double));
+    char* temp = (char*)malloc(arrayLength*sizeof(char));
+    inicializarCharArray(temp, arrayLength); //INICIALIZO EL ARREGLO PARA QUE NO TENGA BASURA.
+    for(i = 0; i <= len; i++){
+      if(i == len){ //SI LOS LARGOS SON IGUALES, SIGNIFICA QUE TERMINE DE PROCESAR LA INFORMACION.
+        data[j] = atof(temp);
+        free(temp);
+      }
+      else if(visibilidad[i] == 44){ //SI EN LA POSICION HAY UNA ',', SIGNIFICA QUE TERMINE DE LEER UN DATO.
+        data[j] = atof(temp);
+        j++;
+        k = 0;
+        free(temp); //LIBERO LA MEMORIA PARA EVITAR LEAKS.
+        temp = (char*)malloc(32*sizeof(char)); //LE ASIGNO ESPACIO EN LA RAM NUEVAMENTE.
+        inicializarCharArray(temp, arrayLength); //LE VUELVO A ASIGNAR CEROS PARA QUE NO HAYA BASURA.
+      }
+      else{
+        temp[k] = visibilidad[i];
+        k++;
+      }
+    }
+    return data;
+}
 
 //Función que inicializa el buffer de un monitor
 //Entrada: Nada - utiliza datos globales
@@ -60,7 +95,33 @@ Buffer * inicializarBuffer()
     buffer->cantidad = 0;
     buffer->estado = ABIERTO;
     buffer->data = (char**)malloc(sizeof(char*)*tamanoBuffer);
+    int i;
+    for(i = 0; i < tamanoBuffer; i++){
+      buffer->data[i] = (char*)malloc(sizeof(char)*128);
+    }
     return buffer;
+}
+
+//Función que inicializa la informacion que almacena cada hebra.
+//Entrada: Nada - utiliza datos globales
+//Salida: Puntero a la estructura del tamaño instanciado
+VisibilidadHebra * inicializarDataHebras()
+{
+    VisibilidadHebra * dataHebra = (VisibilidadHebra*)malloc(sizeof(VisibilidadHebra));
+    dataHebra->real = 0;
+    dataHebra->imaginaria = 0;
+    dataHebra->ruido = 0;
+    return dataHebra;
+}
+
+void procesarDatosBuffer(VisibilidadHebra *vh, Buffer *b){
+    int i;
+    for(i = 0; i < b->cantidad; i++){
+      double* data = obtenerDatosVisibilidad(b->data[i]);
+      vh->real = vh-> real + data[2];
+      vh->imaginaria = vh->imaginaria + data[3];
+      vh->ruido = vh->ruido + data[4];
+    }
 }
 
 //Función que añade un dato a un buffer
@@ -68,8 +129,11 @@ Buffer * inicializarBuffer()
 //Salida: Vacío
 void anadirDato(Buffer * b, char * line)
 {
-    b->data[b->cantidad] = line;
-    b->cantidad = b->cantidad + 1;  
+    strcpy(b->data[b->cantidad], line);
+    b->cantidad = b->cantidad + 1;
+    if(b->cantidad == tamanoBuffer){
+      b->estado = CERRADO;
+    }
 }
 
 //Función que añade un dato a un buffer
@@ -83,7 +147,7 @@ void vaciarBuffer(Buffer * b)
     {
         free(b->data[i]);
     }
-    b->cantidad = 0;  
+    b->cantidad = 0;
 }
 
 //Función que inicializa un monitor
@@ -193,10 +257,6 @@ int main(int argc, char* argv[])
       printf("El nombre del archivo de entrada no puede ser igual al archivo de salida.\r\nIntente nuevamente.\r\n");
       exit(0);
     }
-    if(tamanoBuffer < 1){
-      printf("El tamano del buffer no puede ser menor a 1.\r\nIntente nuevamente.\r\n");
-      exit(0);
-    }
 
     //DEBUG
     printf("Iniciando procesamiento con %i discos...\r\n", discCant);
@@ -206,6 +266,7 @@ int main(int argc, char* argv[])
 
     //Se crea un arreglo de buffers en dónde se enviarán los datos a las hebras
     Buffer ** buffers = (Buffer**)malloc(sizeof(Buffer*)*discCant);
+    VisibilidadHebra ** informacionhebras = (VisibilidadHebra**)malloc(sizeof(VisibilidadHebra*)*discCant);
 
     //Se inicializa un mutex
     //pthread_mutex_init(&mutex, NULL);
@@ -213,7 +274,8 @@ int main(int argc, char* argv[])
     int i;
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-        buffers[i] = inicializarBuffer();  
+        buffers[i] = inicializarBuffer();
+        informacionhebras[i] = inicializarDataHebras();
         pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
     }
 
@@ -231,7 +293,6 @@ int main(int argc, char* argv[])
        printf("File %s does not exist.\r\n", fileIn);
        exit(0);
     }
-    int count = 1;
     printf("Procesando linea: \r\n");
     while(!feof(fs)){
        char * line = readLine(fs); //Leemos cada linea del archivo en cuestion.
@@ -239,9 +300,10 @@ int main(int argc, char* argv[])
          //AQUI ES CUANDO SE AVISA A LOS HIJOS DE FIN CERRANDO LOS BUFFERS
          //Y SE LES PIDE LOS DATOS CALCULADOS.
          for(j = 0; j < discCant; j++){
-           buffers[i]->estado = CERRADO;
+           buffers[j]->estado = CERRADO;
+           procesarDatosBuffer(informacionhebras[j], buffers[j]);
+           vaciarBuffer(buffers[j]);
          }
-        
          //PLAN: RECIBIR LOS DATOS DE LOS HIJOS Y LUEGO ALMACENARLO EN UN ARCHIVO.
        }
        else{
@@ -252,7 +314,15 @@ int main(int argc, char* argv[])
         printf("Enviando dato a disco: %i\r\n", disc);
         if(disc >= 0)
         {
-          anadirDato(buffers[disc], line);
+          if(buffers[disc]->cantidad == tamanoBuffer || buffers[disc]->estado == CERRADO){
+            //TRABAJO LA INFORMACION DEL BUFFER LLENO.
+            procesarDatosBuffer(informacionhebras[disc], buffers[disc]);
+            vaciarBuffer(buffers[disc]);
+            anadirDato(buffers[disc], line);
+          }
+          else{
+            anadirDato(buffers[disc], line);
+          }
         }
         //Esto permite hacer conocer al usuario que linea del archivo el programa esta leyendo.
         //printf("\b\b\b\b\b\b\b\b\b");
@@ -260,12 +330,12 @@ int main(int argc, char* argv[])
         //printf("%.7d", count);
         //fflush(stdout);
         //count = count + 1;
-       }
-       printf("%i.-Leyendo: %s\n\r", count, line);
-       count = count + 1;
+      }
+       printf("%s\n\r", line);
        free(line);
     }
-
+    printf("FIN\r\n");
+    fclose(fs);
 
     //FORZAMOS AL PADRE A ESPERAR POR TODOS SUS HIJOS
     //ESCRIBIMOS EN EL ARCHIVO LOS DATOS OBTENIDOS POR LOS HIJOS.
@@ -273,7 +343,7 @@ int main(int argc, char* argv[])
         pthread_join(threads[i], NULL);
     }
 
-
+    printf("Real: %f, img: %f, ruido: %f\r\n", informacionhebras[9]->real, informacionhebras[9]->imaginaria, informacionhebras[9]->ruido);
     //AQUI SE ENTREGA LOS RESULTADOS POR PANTALLA EN CASO DE QUE EL FLAG SEA VERDAD.
     //[Not yet]
     /*
@@ -294,7 +364,7 @@ int main(int argc, char* argv[])
     //Liberamos la memoria del arreglo doble de Double.
     */
 
-    printf("\n\n##### Fin de la ejecucion PADRE #####\n\n");
+    printf("\r\n##### Fin de la ejecucion PADRE #####\r\n");
     return 0;
 }
 
