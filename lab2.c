@@ -63,6 +63,29 @@ Buffer * inicializarBuffer()
     return buffer;
 }
 
+//Función que añade un dato a un buffer
+//Entrada: Puntero al buffer que se añadirá un dato
+//Salida: Vacío
+void anadirDato(Buffer * b, char * line)
+{
+    b->data[b->cantidad] = line;
+    b->cantidad = b->cantidad + 1;  
+}
+
+//Función que añade un dato a un buffer
+//Entrada: Puntero al buffer que se añadirá un dato
+//Salida: Vacío
+//SECCIÓN CRÍTICA
+void vaciarBuffer(Buffer * b)
+{
+    int i;
+    for(i=0; i<tamanoBuffer; i++)
+    {
+        free(b->data[i]);
+    }
+    b->cantidad = 0;  
+}
+
 //Función que inicializa un monitor
 //Entrada: Hebra
 //Salida: Monitor
@@ -96,20 +119,12 @@ void * hebra(void * buffer)
         if(bufferLocal->cantidad == tamanoBuffer)
         {
             printf("Se leeran los datos del buffer...\r\n");
-            bufferLocal->cantidad = 0;
+            vaciarBuffer(bufferLocal);
         }
     }
     printf("Fin \r\n");
 }
 
-//Función que añade un dato a un buffer
-//Entrada: Puntero al buffer que se añadirá un dato
-//Salida: Vacío
-void anadirDato(Buffer * b, char * line)
-{
-    b->data[b->cantidad] = line;
-    b->cantidad = b->cantidad + 1;  
-}
 
 int main(int argc, char* argv[])
 {
@@ -198,8 +213,8 @@ int main(int argc, char* argv[])
     int i;
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-      buffers[i] = inicializarBuffer();  
-      pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
+        buffers[i] = inicializarBuffer();  
+        pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
     }
 
     //En este momento se crearon DiscCant hebras y están esperando las lecturas
@@ -282,3 +297,5 @@ int main(int argc, char* argv[])
     printf("\n\n##### Fin de la ejecucion PADRE #####\n\n");
     return 0;
 }
+
+//Para ejecutar: ./lab2.exe -i prueba100.csv -o out.out -n 10 -d 20 -b -s 3
