@@ -148,6 +148,7 @@ void anadirDato(Buffer * b, char * line)
 {
     strcpy(b->data[b->cantidad], line);
     b->cantidad = b->cantidad + 1;
+    printf("Cantidad de datos en el buffer: %i\n", b->cantidad);
 }
 
 //Función que añade un dato a un buffer
@@ -203,6 +204,7 @@ void * hebra(void * buffer)
         {
             //Inicio sección crítica
             EnterSC(&mutexBuffer);
+            printf("Voy a vaciar el buffer\n");
             double* result = procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
             real = real + result[0];
             imaginaria = imaginaria + result[1];
@@ -210,10 +212,12 @@ void * hebra(void * buffer)
             totalVisibilidades = totalVisibilidades + result[3];
             vaciarBuffer(bufferLocal);
             //Fin sección crítica
+            printf("Buffer vaciado\n");
             ExitSC(&mutexBuffer);
         }
     }
     //Procesa el resto de datos del buffer que no fueron procesados
+    printf("Voy a vaciar el buffer\n");
     EnterSC(&mutexBuffer);
     double* result = procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
     real = real + result[0];
@@ -230,6 +234,7 @@ void * hebra(void * buffer)
       double potencia = sqrt(pow(mediaReal, 2) + pow(mediaImaginaria, 2));
 
       //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
+      printf("Voy a escribir en las visibilidades \n");
       EnterSC(&mutexVisibilidades);
       almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades);
       ExitSC(&mutexVisibilidades);
@@ -312,6 +317,7 @@ int main(int argc, char* argv[])
 
     //DEBUG
     printf("Iniciando procesamiento con %i discos...\r\n", discCant);
+    printf("Tamano buffer: %i\n", tamanoBuffer);
 
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
     pthread_t threads[discCant];
@@ -345,6 +351,7 @@ int main(int argc, char* argv[])
     //4. vis totales
     fs = fopen(fileIn, "r");
     int j;
+    int count = 1;
     if(fs == NULL){
        printf("File %s does not exist.\r\n", fileIn);
        exit(0);
@@ -366,6 +373,7 @@ int main(int argc, char* argv[])
         //PLAN: ENVIAR LINE AL HIJO SELECCIONADO EN DISC MEDIANTE PIPE.
         int disc = obtenerVisibilidadRecibida(line, discWidth, discCant);
         printf("Enviando dato a disco: %i\r\n", disc);
+        usleep(20000);
         if(disc >= 0)
         {
             EnterSC(&mutexBuffer);
@@ -379,11 +387,12 @@ int main(int argc, char* argv[])
         //fflush(stdout);
         //count = count + 1;
       }
-       printf("%s\n\r", line);
-       free(line);
+        printf("%i.  %s\n", count, line);
+        count++;
+        free(line);
     }
     fclose(fs);
-
+    printf("\n # Se han enviado todas las lineas #\n\n");
     //FORZAMOS AL PADRE A ESPERAR POR TODOS SUS HIJOS
     //ESCRIBIMOS EN EL ARCHIVO LOS DATOS OBTENIDOS POR LOS HIJOS.
     for(i = 0; i < discCant; i++){
