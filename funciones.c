@@ -1,7 +1,17 @@
+#include "funciones.h"
+
+//Definición de variables globales
+pthread_mutex_t mutexBuffer;
+pthread_mutex_t mutexVisibilidades; //Mutex del buffer - Solo una hebra puede estar leyendo o escribiendo  en el arreglo de
+int discCant;
+int discWidth;
+int bFlag;
+int tamanoBuffer;
+Visibilidad ** datosVisibilidad;
 //Función que lee una línea de un archivo de texto desde un archivo
 //Entrada: Puntero al archivo del cuál se va a leer
 //Salida: Cadena de char
-char* readLine(FILE* file){
+char* readLine(FILE * file){
   int i = 0;
   //Asignación de memoria para las cadenas
   char* line = (char*)malloc(sizeof(char)*128);
@@ -38,15 +48,53 @@ char* readLine(FILE* file){
   return fixedLine;
 }
 
-//Funnción que retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
-//Entrada: Coordenadas u,v, cantidad de discos y ancho de los discos
-//Salida: Disco de destino
+void writeFile(Visibilidad* visibilidad, char* nombreArchivo, int numDisco){
+  FILE *fp;
+  int i;
+  char** str = (char**)malloc(4*sizeof(char*));
+  for(i = 0; i < 4 ; i++){
+    str[i] = (char*)malloc(20*sizeof(char));
+  }
+  str[0] = "Media real: ";
+  str[1] = "Media imaginaria: ";
+  str[2] = "Potencia: ";
+  str[3] = "Ruido total: ";
+  char numArr[512];
+  sprintf(numArr, "%d", numDisco);
+  char disco[] = "Disco ";
+  char endDisc[] = ":\r\n";
+  char endLine[] = "\r\n";
+  fp = fopen(nombreArchivo, "a+b");
+  fwrite(disco, sizeof(char) , strlen(disco), fp);
+  fwrite(numArr, sizeof(char) , strlen(numArr), fp);
+  fwrite(endDisc, sizeof(char), strlen(endDisc), fp);
+    fwrite(str[0], sizeof(char), strlen(str[0]), fp);
+    sprintf(numArr, "%lf", visibilidad->mediaReal);
+    fwrite(numArr, sizeof(char), strlen(numArr), fp);
+    fwrite(endLine, sizeof(char), strlen(endLine), fp);
+    fwrite(str[1], sizeof(char), strlen(str[1]), fp);
+    sprintf(numArr, "%lf", visibilidad->mediaImaginaria);
+    fwrite(numArr, sizeof(char), strlen(numArr), fp);
+    fwrite(endLine, sizeof(char), strlen(endLine), fp);
+    fwrite(str[2], sizeof(char), strlen(str[2]), fp);
+    sprintf(numArr, "%lf", visibilidad->potencia);
+    fwrite(numArr, sizeof(char), strlen(numArr), fp);
+    fwrite(endLine, sizeof(char), strlen(endLine), fp);
+    fwrite(str[3], sizeof(char), strlen(str[3]), fp);
+    sprintf(numArr, "%lf", visibilidad->ruidoTotal);
+    fwrite(numArr, sizeof(char), strlen(numArr), fp);
+    fwrite(endLine, sizeof(char), strlen(endLine), fp);
+  fwrite(endLine, sizeof(char), strlen(endLine), fp);
+  fclose(fp);
+}
+
+//Retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
 int checkDestination(double coordV, double coordU, int discWidth, int discCant){
     double distanceUV;
     double maxRadius = discWidth*discCant;
-    distanceUV = sqrt(pow(coordV,2)+ pow(coordU,2)); //Se calcula la distancia con la fórmula entregada
+    distanceUV = sqrt(pow(coordV,2)+ pow(coordU,2));
     int disc = (distanceUV/discWidth);
-    if(distanceUV > maxRadius){ //Esto hace que el último disco albergue todas las visibilidades que queden fuera del espectro máximo
+    if(distanceUV > maxRadius){
        return discCant - 1;
     }
     else{
@@ -54,9 +102,6 @@ int checkDestination(double coordV, double coordU, int discWidth, int discCant){
     }
 }
 
-//Función que inicializa un arreglo de char
-//Entrada: Arreglo y largo del arreglo
-//Salida: Nada, solo referencia
 void inicializarCharArray(char* array, int largo){
     int i;
     for(i = 0; i < largo; i++){
@@ -64,9 +109,6 @@ void inicializarCharArray(char* array, int largo){
     }
 }
 
-//Función que lee la visibilidad desde un cadena de datos
-//Entrada: Cadena de datos, ancho del disco, cantidad de discos
-//Salida: Visibilidad como entero
 int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
     int j = 0; //DECLARACION DE j PARA POSICIONAR DOUBLE EN ARREGLO.
@@ -97,194 +139,23 @@ int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
     return checkDestination(data[0], data[1], discWidth, discCant); //BUSCO EL DISCO AL QUE PERTENECE LA INFO.
 }
 
-//Función que escribe en un archivo los datos procesados por un hijo
-//Entrada: Arreglo de datos de un hijos, nombre del archivo de salida, número de disco actual
-//Salida: Nada
-void writeFile(double* informacionHijos, char* nombreArchivo, int numDisco){
-  FILE *fp;
-  int i;
-  char** str = (char**)malloc(4*sizeof(char*));
-  for(i = 0; i < 4 ; i++){
-    str[i] = (char*)malloc(20*sizeof(char));
-  }
-  str[0] = "Media real: ";
-  str[1] = "Media imaginaria: ";
-  str[2] = "Potencia: ";
-  str[3] = "Ruido total: ";
-  char numArr[512];
-  sprintf(numArr, "%d", numDisco);
-  char disco[] = "Disco ";
-  char endDisc[] = ":\r\n";
-  char endLine[] = "\r\n";
-  fp = fopen(nombreArchivo, "a+b");
-  fwrite(disco, sizeof(char) , strlen(disco), fp);
-  fwrite(numArr, sizeof(char) , strlen(numArr), fp);
-  fwrite(endDisc, sizeof(char), strlen(endDisc), fp);
-  for(i = 0; i < 4; i++){
-    fwrite(str[i], sizeof(char), strlen(str[i]), fp);
-    sprintf(numArr, "%lf", informacionHijos[i]);
-    fwrite(numArr, sizeof(char), strlen(numArr), fp);
-    fwrite(endLine, sizeof(char), strlen(endLine), fp);
-  }
-  fwrite(endLine, sizeof(char), strlen(endLine), fp);
-  fclose(fp);
+//Función ENTERSC: Buffer
+//Entrada: Mutex buffer
+//Salida: Void
+void EnterSC(pthread_mutex_t * mutex)
+{
+    pthread_mutex_lock(mutex);
 }
 
-
-////////////////////////////////////////
-
-//Datoshijos:
-    //0. media real
-    //1. imaginaria
-    //2. portencia
-    //3. ruido
-    //4. vis totales
-    /*
-      fs = fopen(fileIn, "r");
-      int j;
-      //Creando arreglo de Doubles que recibira la informacion de los hijos.
-      double **dataHijos = (double**)malloc(sizeof(double*)*discCant);
-      for(j = 0; j < discCant; j++){
-        dataHijos[j] = (double*)malloc(sizeof(double)*512);
-      }
-      if(fs == NULL){
-        printf("File %s does not exist.\r\n", fileIn);
-        exit(0);
-      }
-      int count = 1;
-      printf("Procesando linea: \r\n");
-      while(!feof(fs)){
-        char *line = readLine(fs); //Leemos cada linea del archivo en cuestion.
-        if(line[0] == '\0'){
-          //AQUI ES CUANDO SE AVISA A LOS HIJOS DE FIN
-          //Y SE LES PIDE LOS DATOS CALCULADOS.
-          //PLAN: RECIBIR LOS DATOS DE LOS HIJOS Y LUEGO ALMACENARLO EN UN ARCHIVO.
-          char* endProgram = "FIN";
-          for(j = 0; j < discCant; j++){
-            write(pipesEscritura[j][ESCRITURA], endProgram, strlen(endProgram));
-          }
-          for(j = 0; j < discCant; j++){
-            read(pipesLectura[j][LECTURA], dataHijos[j], 512);
-          }
-        }
-        else{
-          //AQUI SE LES ENTREGA LINEA A LINEA LOS DATOS DE ENTRADA.
-          //A CADA HIJO QUE TENGAMOS.
-          //PLAN: ENVIAR LINE AL HIJO SELECCIONADO EN DISC MEDIANTE PIPE.
-          int disc = obtenerVisibilidadRecibida(line, discWidth, discCant);
-          if(disc >= 0)
-          {
-            char* dataLength = (char*)malloc(sizeof(char)*10);
-            sprintf(dataLength, "%li", strlen(line));
-            write(pipesEscritura[disc][ESCRITURA], dataLength, 10);
-            usleep(1500);
-            write(pipesEscritura[disc][ESCRITURA], line, strlen(line));
-          }
-          //Esto permite hacer conocer al usuario que linea del archivo el programa esta leyendo.
-          printf("\b\b\b\b\b\b\b\b\b");
-          fflush(stdout);
-          printf("%.7d", count);
-          fflush(stdout);
-          count = count + 1;
-        }
-        usleep(2000);
-        free(line);
-      }
-      while ((wpid = wait(&status)) > 0); //FORZAMOS AL PADRE A ESPERAR POR TODOS SUS HIJOS
-      //ESCRIBIMOS EN EL ARCHIVO LOS DATOS OBTENIDOS POR LOS HIJOS.
-      for(i = 0; i < discCant; i++){
-        writeFile(dataHijos[i], fileOut, i + 1);
-      }
-      //AQUI SE ENTREGA LOS RESULTADOS POR PANTALLA EN CASO DE QUE EL FLAG SEA VERDAD.
-      if(bFlag)
-      {
-          int total = 0;
-          printf("\r\n");
-          for(i = 0; i < discCant; i++)
-          {
-              printf("Soy el hijo, de pid %i y procese %i visibilidades\r\n", childs[i], (int)dataHijos[i][4]);
-              total = total + (int)dataHijos[i][4];
-          }
-          printf("Total de visibilidades procesadas por mis hijos: %i\r\n", total);
-
-      }
-      //Antes de finalizar el programa, liberamos la memoria.
-      //Liberamos la memoria del arreglo doble de Double.
-      for(i = 0; i < discCant; i++){
-        free(dataHijos[i]);
-      }
-      free(dataHijos);
-      //Ahora liberamos los pipes.
-      for(i = 0; i < discCant; i++){
-        free(pipesEscritura[i]);
-        free(pipesLectura[i]);
-      }
-      free(pipesEscritura);
-      free(pipesLectura);
-      //Liberamos la memoria del resto.
-      free(childs);
-    */
-
-   //Función que lee una línea de un archivo de texto desde un archivo
-//Entrada: Puntero al archivo del cuál se va a leer
-//Salida: Cadena de char
-char* readLine(FILE* file){
-  int i = 0;
-  //Asignación de memoria para las cadenas
-  char* line = (char*)malloc(sizeof(char)*128);
-  char* ch = (char*)malloc(sizeof(char)*64);
-
-  int read;
-  while((read = fread(ch, sizeof(char), 1, file)) == 1){
-    if(ch[0] == 10){
-      line[i] = '\0';
-      i++;
-      break;
-    }
-    else{
-      line[i] = ch[0];
-      i++;
-    }
-  }
-  if(line[i] == 10){
-    line[i] = '\0';
-  }
-  if(read == 0){
-    line[0] = '\0';
-  }
-  return line;
+//Función EXIT: Buffer
+//Entrada: Mutex buffer
+//Salida: Void
+void ExitSC(pthread_mutex_t * mutex)
+{
+    pthread_mutex_unlock(mutex);
 }
 
-//Funnción que retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
-//Entrada: Coordenadas u,v, cantidad de discos y ancho de los discos
-//Salida: Disco de destino
-int checkDestination(double coordV, double coordU, int discWidth, int discCant){
-    double distanceUV;
-    double maxRadius = discWidth*discCant;
-    distanceUV = sqrt(pow(coordV,2)+ pow(coordU,2)); //Se calcula la distancia con la fórmula entregada
-    int disc = (distanceUV/discWidth);
-    if(distanceUV > maxRadius){ //Esto hace que el último disco albergue todas las visibilidades que queden fuera del espectro máximo
-       return discCant - 1;
-    }
-    else{
-       return disc;
-    }
-}
-
-//Función que inicializa un arreglo de char
-//Entrada: Arreglo y largo del arreglo
-//Salida: Nada, solo referencia
-void inicializarCharArray(char* array, int largo){
-    int i;
-    for(i = 0; i < largo; i++){
-      array[i] = 0;
-    }
-}
-
-//Función que lee la visibilidad desde un cadena de datos
-//Entrada: Cadena de datos, ancho del disco, cantidad de discos
-//Salida: Visibilidad como entero
-int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
+double* obtenerDatosVisibilidad(char* visibilidad){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
     int j = 0; //DECLARACION DE j PARA POSICIONAR DOUBLE EN ARREGLO.
     int k = 0; //DECLARACION DE k PARA POSICIONAR CHAR EN ARREGLO.
@@ -311,38 +182,124 @@ int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
         k++;
       }
     }
-    return checkDestination(data[0], data[1], discWidth, discCant); //BUSCO EL DISCO AL QUE PERTENECE LA INFO.
+    return data;
 }
 
-//Función que escribe en un archivo los datos procesados por un hijo
-//Entrada: Arreglo de datos de un hijos, nombre del archivo de salida, número de disco actual
-//Salida: Nada
-void writeFile(double* informacionHijos, char* nombreArchivo, int numDisco){
-  FILE *fp;
-  int i;
-  char** str = (char**)malloc(4*sizeof(char*));
-  for(i = 0; i < 4 ; i++){
-    str[i] = (char*)malloc(20*sizeof(char));
-  }
-  str[0] = "Media real: ";
-  str[1] = "Media imaginaria: ";
-  str[2] = "Potencia: ";
-  str[3] = "Ruido total: ";
-  char numArr[512];
-  sprintf(numArr, "%d", numDisco);
-  char disco[] = "Disco ";
-  char endDisc[] = ":\r\n";
-  char endLine[] = "\r\n";
-  fp = fopen(nombreArchivo, "a+b");
-  fwrite(disco, sizeof(char) , strlen(disco), fp);
-  fwrite(numArr, sizeof(char) , strlen(numArr), fp);
-  fwrite(endDisc, sizeof(char), strlen(endDisc), fp);
-  for(i = 0; i < 4; i++){
-    fwrite(str[i], sizeof(char), strlen(str[i]), fp);
-    sprintf(numArr, "%lf", informacionHijos[i]);
-    fwrite(numArr, sizeof(char), strlen(numArr), fp);
-    fwrite(endLine, sizeof(char), strlen(endLine), fp);
-  }
-  fwrite(endLine, sizeof(char), strlen(endLine), fp);
-  fclose(fp);
+//Función que inicializa el buffer de un monitor
+//Entrada: Nada - utiliza datos globales
+//Salida: Puntero a buffer del tamaño instanciado
+Buffer * inicializarBuffer()
+{
+    Buffer * buffer = (Buffer*)malloc(sizeof(Buffer));
+    buffer->id = 0;
+    buffer->cantidad = 0;
+    buffer->estado = ABIERTO;
+    buffer->full = 0;
+    buffer->empty = 1;
+    buffer->data = (char**)malloc(sizeof(char*)*tamanoBuffer);
+    int i;
+    for(i = 0; i < tamanoBuffer; i++){
+      buffer->data[i] = (char*)malloc(sizeof(char)*128);
+    }
+    return buffer;
+}
+
+Visibilidad * inicializarVisibilidad(){
+    Visibilidad * visibilidad = (Visibilidad*)malloc(sizeof(Visibilidad));
+    visibilidad->mediaReal = 0;
+    visibilidad->mediaImaginaria = 0;
+    visibilidad->ruidoTotal = 0;
+    visibilidad->potencia = 0;
+    visibilidad->totalVisibilidades = 0;
+    return visibilidad;
+}
+
+double* procesarDatosBuffer(double real, double imaginaria, double ruido, int totalVisibilidades, Buffer *b){
+    int i;
+    double *result = (double*)malloc(sizeof(double)*4);
+    for(i = 0; i < b->cantidad; i++){
+      double* data = obtenerDatosVisibilidad(b->data[i]);
+      real = real + data[2];
+      imaginaria = imaginaria + data[3];
+      ruido = ruido + data[4];
+    }
+    totalVisibilidades = totalVisibilidades + b->cantidad;
+    result[0] = real;
+    result[1] = imaginaria;
+    result[2] = ruido;
+    result[3] = (double)totalVisibilidades;
+    return result;
+}
+
+void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, Visibilidad *visibilidad){
+    visibilidad->mediaReal = mediaReal;
+    visibilidad->mediaImaginaria = mediaImaginaria;
+    visibilidad->ruidoTotal = ruido;
+    visibilidad->potencia = potencia;
+    visibilidad->totalVisibilidades = totalVisibilidades;
+}
+
+//Función que añade un dato a un buffer
+//Entrada: Puntero al buffer que se añadirá un dato
+//Salida: Vacío
+void anadirDato(Buffer * b, char * line)
+{
+    strcpy(b->data[b->cantidad], line);
+    b->cantidad = b->cantidad + 1;
+    if(b->cantidad == tamanoBuffer){
+      b->full = 1;
+      b->empty = 0;
+    }
+    //printf("Cantidad de datos en el buffer: %i\n", b->cantidad);
+}
+
+//Función que añade un dato a un buffer
+//Entrada: Puntero al buffer que se añadirá un dato
+//Salida: Vacío
+//SECCIÓN CRÍTICA
+void vaciarBuffer(Buffer * b)
+{
+    int i;
+    for(i=0; i<b->cantidad; i++)
+    {
+        free(b->data[i]);
+    }
+    for(i = 0; i < tamanoBuffer; i++){
+      b->data[i] = (char*)malloc(sizeof(char)*128);
+    }
+    b->cantidad = 0;
+    b->full = 0;
+    b->empty = 1;
+}
+
+//Función que limpia la memoria utilizada por los buffer.
+//Entrada: Puntero al buffer que se añadirá un dato
+//Salida: Vacío
+//FINAL DE PROGRAMA.
+void vaciarBufferSinReasignar(Buffer * b)
+{
+    int i;
+    for(i=0; i<b->cantidad; i++)
+    {
+        free(b->data[i]);
+    }
+}
+
+//Función debug que imprime los datos las visibilidades en pantalla
+//Entrada: nada
+//Salida: por pantalla
+void mostrarVisibilidades()
+{
+    printf("\r\n");
+    if(bFlag)
+    {
+        int i;
+        int total = 0;
+        for(i=0; i<discCant; i++)
+        {
+            printf("Soy la hebra %i, procese %i visibilidades.\n\r", i+1, datosVisibilidad[i]->totalVisibilidades);
+            total = total + datosVisibilidad[i]->totalVisibilidades;
+        }
+        printf("Total de visibilidades procesadas por mis hijos: %i\r\n", total);
+    }
 }
