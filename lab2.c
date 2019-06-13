@@ -30,6 +30,7 @@ typedef struct Visibilidad
 
 typedef struct Buffer
 {
+    int hebra;
     int cantidad;
     int estado;
     char ** data;
@@ -42,7 +43,7 @@ int discCant;
 int discWidth;
 int bFlag;
 int tamanoBuffer;
-Visibilidad * datosVisibilidad;
+Visibilidad ** datosVisibilidad;
 
 //Función ENTERSC: Buffer
 //Entrada: Mutex buffer
@@ -93,9 +94,10 @@ double* obtenerDatosVisibilidad(char* visibilidad){
 //Función que inicializa el buffer de un monitor
 //Entrada: Nada - utiliza datos globales
 //Salida: Puntero a buffer del tamaño instanciado
-Buffer * inicializarBuffer()
+Buffer * inicializarBuffer(int numHebra)
 {
     Buffer * buffer = (Buffer*)malloc(sizeof(Buffer));
+    buffer->hebra = numHebra;
     buffer->cantidad = 0;
     buffer->estado = ABIERTO;
     buffer->data = (char**)malloc(sizeof(char*)*tamanoBuffer);
@@ -133,12 +135,12 @@ double* procesarDatosBuffer(double real, double imaginaria, double ruido, int to
     return result;
 }
 
-void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades){
-    datosVisibilidad->mediaReal = mediaReal;
-    datosVisibilidad->mediaImaginaria = mediaImaginaria;
-    datosVisibilidad->ruidoTotal = ruido;
-    datosVisibilidad->potencia = potencia;
-    datosVisibilidad->totalVisibilidades = totalVisibilidades;
+void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, int hebra){
+    datosVisibilidad[hebra]->mediaReal = mediaReal;
+    datosVisibilidad[hebra]->mediaImaginaria = mediaImaginaria;
+    datosVisibilidad[hebra]->ruidoTotal = ruido;
+    datosVisibilidad[hebra]->potencia = potencia;
+    datosVisibilidad[hebra]->totalVisibilidades = totalVisibilidades;
 }
 
 //Función que añade un dato a un buffer
@@ -176,11 +178,11 @@ void mostrarVisibilidades()
         printf("\nImprimiendo datos visibilidad\n\r");
         for(i=0; i<discCant; i++)
         {   printf("Disco: %i\n\r", i);
-            printf("Media real: %lf\n\r", datosVisibilidad[i].mediaReal);
-            printf("Media imaginaria: %lf\n\r", datosVisibilidad[i].mediaImaginaria);
-            printf("ruido total: %lf\n\r", datosVisibilidad[i].ruidoTotal);
-            printf("Potencia: %lf\n\r", datosVisibilidad[i].potencia);
-            printf("Total visibilidades: %i\n\r", datosVisibilidad[i].totalVisibilidades);
+            printf("Media real: %lf\n\r", datosVisibilidad[i]->mediaReal);
+            printf("Media imaginaria: %lf\n\r", datosVisibilidad[i]->mediaImaginaria);
+            printf("ruido total: %lf\n\r", datosVisibilidad[i]->ruidoTotal);
+            printf("Potencia: %lf\n\r", datosVisibilidad[i]->potencia);
+            printf("Total visibilidades: %i\n\r", datosVisibilidad[i]->totalVisibilidades);
         }
     }
 }
@@ -236,7 +238,7 @@ void * hebra(void * buffer)
       //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
       printf("Voy a escribir en las visibilidades \n");
       EnterSC(&mutexVisibilidades);
-      almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades);
+      //almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades, bufferLocal->hebra);
       ExitSC(&mutexVisibilidades);
       //FIN SECCIÓN CRÍTICA
     }
@@ -329,14 +331,15 @@ int main(int argc, char* argv[])
 
     //Se crea un arreglo de buffers en dónde se enviarán los datos a las hebras
     Buffer ** buffers = (Buffer**)malloc(sizeof(Buffer*)*discCant);
-    datosVisibilidad = inicializarVisibilidad();
+    Visibilidad ** datosVisibilidad = (Visibilidad**)malloc(sizeof(Visibilidad*)*discCant);
     //Se inicializa un mutex
     //pthread_mutex_init(&mutex, NULL);
 
     int i;
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-        buffers[i] = inicializarBuffer();
+        buffers[i] = inicializarBuffer(i);
+        datosVisibilidad[i] = inicializarVisibilidad();
         pthread_mutex_init(&mutexBuffer, NULL);
         pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
     }
@@ -377,6 +380,7 @@ int main(int argc, char* argv[])
         if(disc >= 0)
         {
             EnterSC(&mutexBuffer);
+            printf("Tamano buffer de disco %i hebra numero %i es: %i\r\n", disc, buffers[disc]->hebra ,buffers[disc]->cantidad);
             anadirDato(buffers[disc], line);
             ExitSC(&mutexBuffer);
         }
@@ -400,7 +404,7 @@ int main(int argc, char* argv[])
     }
 
 
-    mostrarVisibilidades();
+    //mostrarVisibilidades();
     //AQUI SE ENTREGA LOS RESULTADOS POR PANTALLA EN CASO DE QUE EL FLAG SEA VERDAD.
     //[Not yet]
     /*
