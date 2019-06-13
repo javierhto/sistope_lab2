@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <pthread.h>
-#include "funciones.c"
+#include "src/funciones.c"
 
 //Función que inciializa la ejecuión de una hebra
 //Entrada:
@@ -78,7 +78,7 @@ void * hebra(void * buffer)
 
 int main(int argc, char* argv[])
 {
-    printf("\n\n##### Inicio de la ejecucion PADRE #####\n\n");
+    printf("\n\n##### Inicio de la ejecucion hebra PADRE #####\n\n");
     //Manejo de las banderas
     //Variables de entrada
     bFlag = FALSE;              //-b Bandera indicadora de imprimir datos en pantalla
@@ -209,20 +209,23 @@ int main(int argc, char* argv[])
          //PLAN: RECIBIR LOS DATOS DE LOS HIJOS Y LUEGO ALMACENARLO EN UN ARCHIVO.
        }
        else{
-        //AQUI SE LES ENTREGA LINEA A LINEA LOS DATOS DE ENTRADA.
-        //A CADA HIJO QUE TENGAMOS.
-        //PLAN: ENVIAR LINE AL HIJO SELECCIONADO EN DISC MEDIANTE PIPE.
-        int disc = obtenerVisibilidadRecibida(line, discWidth, discCant);
-        if(disc >= 0)
-        {
-            EnterSC(&buffers[disc]->mutex);
-            while(buffers[disc]->full){
-              pthread_cond_wait(&buffers[disc]->notFull, &buffers[disc]->mutex);
-            }
-            anadirDato(buffers[disc], line);
-            pthread_cond_signal(&buffers[disc]->notEmpty);
-            ExitSC(&buffers[disc]->mutex);
-        }
+         //Verificamos que la linea de entrada corresponda a una linea de dato y no cualquier cosa.
+         if(strlen(line) > 30){
+           //AQUI SE LES ENTREGA LINEA A LINEA LOS DATOS DE ENTRADA.
+           //A CADA HIJO QUE TENGAMOS.
+           //PLAN: ENVIAR LINE AL HIJO SELECCIONADO EN DISC MEDIANTE PIPE.
+           int disc = obtenerVisibilidadRecibida(line, discWidth, discCant);
+           if(disc >= 0)
+           {
+               EnterSC(&buffers[disc]->mutex);
+               while(buffers[disc]->full){
+                 pthread_cond_wait(&buffers[disc]->notFull, &buffers[disc]->mutex);
+               }
+               anadirDato(buffers[disc], line);
+               pthread_cond_signal(&buffers[disc]->notEmpty);
+               ExitSC(&buffers[disc]->mutex);
+           }
+         }
         //Esto permite hacer conocer al usuario que linea del archivo el programa esta leyendo.
         printf("\b\b\b\b\b\b\b\b\b");
         fflush(stdout);
@@ -246,7 +249,7 @@ int main(int argc, char* argv[])
     //Antes de finalizar el programa, liberamos la memoria.
     //Liberamos la memoria del arreglo doble de Double.
 
-    printf("\r\n##### Fin de la ejecucion PADRE #####\r\n");
+    printf("\r\n##### Fin de la ejecucion hebra PADRE #####\r\n");
     return 0;
 }
 
