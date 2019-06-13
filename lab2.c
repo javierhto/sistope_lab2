@@ -19,13 +19,6 @@
 #define ABIERTO 1
 #define CERRADO 0
 
-typedef struct Monitor
-{
-  char * buffer;
-  int cantidad; //Cantidad de datos almacenados
-  pthread_cond_t nolleno, novacio;
-}Monitor;
-
 typedef struct Visibilidad
 {
   int totalVisibilidades;
@@ -43,12 +36,29 @@ typedef struct Buffer
 }Buffer;
 
 //Definición de variables globales
-//pthread_mutex_t mutex;
+pthread_mutex_t mutexBuffer;
+pthread_mutex_t mutexVisibilidades; //Mutex del buffer - Solo una hebra puede estar leyendo o escribiendo  en el arreglo de
 int discCant;
 int discWidth;
 int bFlag;
 int tamanoBuffer;
-Visibilidad *datosVisibilidad;
+Visibilidad * datosVisibilidad;
+
+//Función ENTERSC: Buffer
+//Entrada: Mutex buffer
+//Salida: Void
+void EnterSC(pthread_mutex_t * mutex)
+{
+    pthread_mutex_lock(mutex);
+}
+
+//Función EXIT: Buffer
+//Entrada: Mutex buffer
+//Salida: Void
+void ExitSC(pthread_mutex_t * mutex)
+{
+    pthread_mutex_unlock(mutex);
+}
 
 double* obtenerDatosVisibilidad(char* visibilidad){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
@@ -97,7 +107,7 @@ Buffer * inicializarBuffer()
 }
 
 Visibilidad * inicializarVisibilidad(){
-    Visibilidad * visibilidad = (Visibilidad*)malloc(sizeof(Visibilidad));
+    Visibilidad * visibilidad = (Visibilidad*)malloc(sizeof(Visibilidad)*discCant);
     visibilidad->mediaReal = 0;
     visibilidad->mediaImaginaria = 0;
     visibilidad->ruidoTotal = 0;
@@ -154,17 +164,24 @@ void vaciarBuffer(Buffer * b)
     b->cantidad = 0;
 }
 
-//Función que inicializa un monitor
-//Entrada: Hebra
-//Salida: Monitor
-Monitor * inicializarMonitor()
+//Función debug que imprime los datos las visibilidades en pantalla
+//Entrada: nada
+//Salida: por pantalla
+void mostrarVisibilidades()
 {
-  Monitor * monitor;
-  monitor->cantidad = 0;
-  monitor->buffer = malloc(sizeof(char)*tamanoBuffer);
-  pthread_cond_init(&monitor->nolleno, NULL);
-  pthread_cond_init(&monitor->novacio, NULL);
-  return monitor;
+    if(bFlag)
+    {
+        int i;
+        printf("\nImprimiendo datos visibilidad\n\r");
+        for(i=0; i<discCant; i++)
+        {   printf("Disco: %i\n\r", i);
+            printf("Media real: %lf\n\r", datosVisibilidad[i].mediaReal);
+            printf("Media imaginaria: %lf\n\r", datosVisibilidad[i].mediaImaginaria);
+            printf("ruido total: %lf\n\r", datosVisibilidad[i].ruidoTotal);
+            printf("Potencia: %lf\n\r", datosVisibilidad[i].potencia);
+            printf("Total visibilidades: %i\n\r", datosVisibilidad[i].totalVisibilidades);
+        }
+    }
 }
 
 //Función que inciializa la ejecuión de una hebra
@@ -184,30 +201,45 @@ void * hebra(void * buffer)
     {
         if(bufferLocal->cantidad == tamanoBuffer)
         {
-          double* result = procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
-          real = real + result[0];
-          imaginaria = imaginaria + result[1];
-          ruido = ruido + result[2];
-          totalVisibilidades = totalVisibilidades + result[3];
-          vaciarBuffer(bufferLocal);
+            //Inicio sección crítica
+            EnterSC(&mutexBuffer);
+            double* result = procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
+            real = real + result[0];
+            imaginaria = imaginaria + result[1];
+            ruido = ruido + result[2];
+            totalVisibilidades = totalVisibilidades + result[3];
+            vaciarBuffer(bufferLocal);
+            //Fin sección crítica
+            ExitSC(&mutexBuffer);
         }
     }
+    //Procesa el resto de datos del buffer que no fueron procesados
+    EnterSC(&mutexBuffer);
     double* result = procesarDatosBuffer(real, imaginaria, ruido, totalVisibilidades, bufferLocal);
     real = real + result[0];
     imaginaria = imaginaria + result[1];
     ruido = ruido + result[2];
     totalVisibilidades = totalVisibilidades + result[3];
     vaciarBuffer(bufferLocal);
+    ExitSC(&mutexBuffer);
+
     if(totalVisibilidades > 0){
       double mediaReal = ((double)1/(double)totalVisibilidades)*real;
       double mediaImaginaria = ((double)1/(double)totalVisibilidades)*imaginaria;
       double ruidoTotal = ruido;
       double potencia = sqrt(pow(mediaReal, 2) + pow(mediaImaginaria, 2));
+
+      //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
+      EnterSC(&mutexVisibilidades);
       almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades);
+      ExitSC(&mutexVisibilidades);
+      //FIN SECCIÓN CRÍTICA
     }
     printf("Fin \r\n");
 }
 
+
+//////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
 {
@@ -261,6 +293,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+
     //Verificacion de buffer
     if(tamanoBuffer < 1){
       printf("El tamano del buffer no puede ser menor a 1.\r\nIntente nuevamente.\r\n");
@@ -282,8 +315,11 @@ int main(int argc, char* argv[])
 
     //Se crea un arreglo de hebras del tamaño de la cantidad de discos
     pthread_t threads[discCant];
+    //Se crean los mutex para las estructuras de buffer y visibilidades
+    pthread_mutex_init(&mutexBuffer, NULL);
+    pthread_mutex_init(&mutexVisibilidades, NULL);
 
-    pthread_mutex_t mutexAcumulador[discCant];
+    //pthread_mutex_t mutexAcumulador[discCant];
 
     //Se crea un arreglo de buffers en dónde se enviarán los datos a las hebras
     Buffer ** buffers = (Buffer**)malloc(sizeof(Buffer*)*discCant);
@@ -295,7 +331,7 @@ int main(int argc, char* argv[])
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
         buffers[i] = inicializarBuffer();
-        pthread_mutex_init(&mutexAcumulador[i], NULL);
+        pthread_mutex_init(&mutexBuffer, NULL);
         pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
     }
 
@@ -332,9 +368,9 @@ int main(int argc, char* argv[])
         printf("Enviando dato a disco: %i\r\n", disc);
         if(disc >= 0)
         {
-            pthread_mutex_lock(&mutexAcumulador[disc]);
+            EnterSC(&mutexBuffer);
             anadirDato(buffers[disc], line);
-            pthread_mutex_unlock(&mutexAcumulador[disc]);
+            ExitSC(&mutexBuffer);
         }
         //Esto permite hacer conocer al usuario que linea del archivo el programa esta leyendo.
         //printf("\b\b\b\b\b\b\b\b\b");
@@ -353,8 +389,9 @@ int main(int argc, char* argv[])
     for(i = 0; i < discCant; i++){
         pthread_join(threads[i], NULL);
     }
-    printf("HEBRA: mediaReal: %f, img: %f, ruido: %f, potencia: %f, visibilidades: %i\r\n", datosVisibilidad->mediaReal, datosVisibilidad->mediaImaginaria, datosVisibilidad->ruidoTotal, datosVisibilidad->potencia, datosVisibilidad->totalVisibilidades);
-    printf("FIN HILO PRINCIPAL\r\n");
+
+
+    mostrarVisibilidades();
     //AQUI SE ENTREGA LOS RESULTADOS POR PANTALLA EN CASO DE QUE EL FLAG SEA VERDAD.
     //[Not yet]
     /*
