@@ -30,7 +30,7 @@ typedef struct Visibilidad
 
 typedef struct Buffer
 {
-    int hebra;
+    int id;
     int cantidad;
     int estado;
     char ** data;
@@ -135,12 +135,12 @@ double* procesarDatosBuffer(double real, double imaginaria, double ruido, int to
     return result;
 }
 
-void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, int hebra){
-    datosVisibilidad[hebra]->mediaReal = mediaReal;
-    datosVisibilidad[hebra]->mediaImaginaria = mediaImaginaria;
-    datosVisibilidad[hebra]->ruidoTotal = ruido;
-    datosVisibilidad[hebra]->potencia = potencia;
-    datosVisibilidad[hebra]->totalVisibilidades = totalVisibilidades;
+void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, int id){
+    datosVisibilidad[id].mediaReal = mediaReal;
+    datosVisibilidad[id].mediaImaginaria = mediaImaginaria;
+    datosVisibilidad[id].ruidoTotal = ruido;
+    datosVisibilidad[id].potencia = potencia;
+    datosVisibilidad[id].totalVisibilidades = totalVisibilidades;
 }
 
 //Función que añade un dato a un buffer
@@ -236,9 +236,9 @@ void * hebra(void * buffer)
       double potencia = sqrt(pow(mediaReal, 2) + pow(mediaImaginaria, 2));
 
       //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
-      printf("Voy a escribir en las visibilidades \n");
+      printf("Voy a escribir en las visibilidades: %i\n", bufferLocal->id);
       EnterSC(&mutexVisibilidades);
-      //almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades, bufferLocal->hebra);
+      almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades, bufferLocal->id);
       ExitSC(&mutexVisibilidades);
       //FIN SECCIÓN CRÍTICA
     }
@@ -338,8 +338,8 @@ int main(int argc, char* argv[])
     int i;
     for(i=0; i<discCant; i++) //Se crean tantas hebras como discos
     {
-        buffers[i] = inicializarBuffer(i);
-        datosVisibilidad[i] = inicializarVisibilidad();
+        buffers[i] = inicializarBuffer();
+        buffers[i]->id = i;
         pthread_mutex_init(&mutexBuffer, NULL);
         pthread_create(&threads[i], NULL, hebra, (void*)buffers[i]); //Utilización: Pthread_create: (direccion de memoria de la hebra a crear, NULL, función vacia que iniciará la hebra, parámetros de la función)
     }
@@ -400,6 +400,7 @@ int main(int argc, char* argv[])
     //FORZAMOS AL PADRE A ESPERAR POR TODOS SUS HIJOS
     //ESCRIBIMOS EN EL ARCHIVO LOS DATOS OBTENIDOS POR LOS HIJOS.
     for(i = 0; i < discCant; i++){
+        printf("Esperando a la hebra %i\n",i);
         pthread_join(threads[i], NULL);
     }
 
