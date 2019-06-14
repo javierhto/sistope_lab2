@@ -10,70 +10,6 @@
 #include <pthread.h>
 #include "src/funciones.c"
 
-//Función que inciializa la ejecuión de una hebra
-//Entrada:
-//Salida: Nada, vacío
-void * hebra(void * buffer)
-{
-    //Casteo de los datos para la hebra.
-    double real = 0;
-    double imaginaria = 0;
-    double ruido = 0;
-    int totalVisibilidades = 0;
-    //Casteo del buffer entregado
-    Buffer * bufferLocal = buffer;
-
-    while(bufferLocal->estado == ABIERTO)
-    {
-        EnterSC(&bufferLocal->mutex);
-        while(bufferLocal->empty){
-          pthread_cond_wait(&bufferLocal->notEmpty, &bufferLocal->mutex);
-        }
-        if(bufferLocal->cantidad == tamanoBuffer)
-        {
-            //Inicio sección crítica
-            int i;
-            for(i = 0; i < bufferLocal->cantidad; i++){
-              double* data = obtenerDatosVisibilidad(bufferLocal->data[i]);
-              real = real + data[2];
-              imaginaria = imaginaria + data[3];
-              ruido = ruido + data[4];
-              totalVisibilidades = totalVisibilidades + 1;
-            }
-            vaciarBuffer(bufferLocal);
-            //Fin sección crítica
-        }
-        pthread_cond_signal(&bufferLocal->notFull);
-        ExitSC(&bufferLocal->mutex);
-    }
-    //Procesa el resto de datos del buffer que no fueron procesados
-    EnterSC(&bufferLocal->mutex);
-    int i;
-    for(i = 0; i < bufferLocal->cantidad; i++){
-      double* data = obtenerDatosVisibilidad(bufferLocal->data[i]);
-      real = real + data[2];
-      imaginaria = imaginaria + data[3];
-      ruido = ruido + data[4];
-      totalVisibilidades = totalVisibilidades + 1;
-    }
-    vaciarBuffer(bufferLocal);
-    ExitSC(&bufferLocal->mutex);
-
-    if(totalVisibilidades > 0){
-      double mediaReal = ((double)1/(double)totalVisibilidades)*real;
-      double mediaImaginaria = ((double)1/(double)totalVisibilidades)*imaginaria;
-      double ruidoTotal = ruido;
-      double potencia = sqrt(pow(mediaReal, 2) + pow(mediaImaginaria, 2));
-
-      //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
-      EnterSC(&mutexVisibilidades);
-      almacenarDatos(mediaReal, mediaImaginaria, ruidoTotal, potencia, totalVisibilidades, datosVisibilidad[bufferLocal->id]);
-      ExitSC(&mutexVisibilidades);
-      //FIN SECCIÓN CRÍTICA
-    }
-}
-
-
 //////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
@@ -246,8 +182,6 @@ int main(int argc, char* argv[])
     for(i = 0; i < discCant; i++){
       writeFile(datosVisibilidad[i], fileOut, i+1);
     }
-    //Antes de finalizar el programa, liberamos la memoria.
-    //Liberamos la memoria del arreglo doble de Double.
 
     printf("\r\n##### Fin de la ejecucion hebra PADRE #####\r\n");
     return 0;

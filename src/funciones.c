@@ -8,6 +8,75 @@ int discWidth;
 int bFlag;
 int tamanoBuffer;
 Visibilidad ** datosVisibilidad;
+
+//Función que inciializa la ejecuión de una hebra
+//Entrada:
+//Salida: Nada, vacío
+void * hebra(void * buffer)
+{
+    //Casteo de los datos para la hebra.
+    double real = 0;
+    double imaginaria = 0;
+    double ruido = 0;
+    int totalVisibilidades = 0;
+    //Casteo del buffer entregado
+    Buffer * bufferLocal = buffer;
+
+    while(bufferLocal->estado == ABIERTO)
+    {
+        EnterSC(&bufferLocal->mutex);
+        while(bufferLocal->empty){
+          pthread_cond_wait(&bufferLocal->notEmpty, &bufferLocal->mutex);
+        }
+        if(bufferLocal->cantidad == tamanoBuffer)
+        {
+            //Inicio sección crítica
+            int i;
+            for(i = 0; i < bufferLocal->cantidad; i++){
+              double* data = obtenerDatosVisibilidad(bufferLocal->data[i]);
+              real = real + data[2];
+              imaginaria = imaginaria + data[3];
+              ruido = ruido + data[4];
+              totalVisibilidades = totalVisibilidades + 1;
+            }
+            //UNA VEZ PROCESADO EL BUFFER, SACAMOS LOS RESULTADOs PARCIALES.
+            bufferLocal->mediaReal = ((double)1/(double)totalVisibilidades)*real;
+            bufferLocal->mediaImaginaria = ((double)1/(double)totalVisibilidades)*imaginaria;
+            bufferLocal->ruidoTotal = ruido;
+            bufferLocal->potencia = sqrt(pow(bufferLocal->mediaReal, 2) + pow(bufferLocal->mediaImaginaria, 2));
+            vaciarBuffer(bufferLocal);
+            //Fin sección crítica
+        }
+        pthread_cond_signal(&bufferLocal->notFull);
+        ExitSC(&bufferLocal->mutex);
+    }
+    //Procesa el resto de datos del buffer que no fueron procesados
+    EnterSC(&bufferLocal->mutex);
+    int i;
+    for(i = 0; i < bufferLocal->cantidad; i++){
+      double* data = obtenerDatosVisibilidad(bufferLocal->data[i]);
+      real = real + data[2];
+      imaginaria = imaginaria + data[3];
+      ruido = ruido + data[4];
+      totalVisibilidades = totalVisibilidades + 1;
+    }
+    vaciarBuffer(bufferLocal);
+    ExitSC(&bufferLocal->mutex);
+
+    if(totalVisibilidades > 0){
+      bufferLocal->mediaReal = ((double)1/(double)totalVisibilidades)*real;
+      bufferLocal->mediaImaginaria = ((double)1/(double)totalVisibilidades)*imaginaria;
+      bufferLocal->ruidoTotal = ruido;
+      bufferLocal->potencia = sqrt(pow(bufferLocal->mediaReal, 2) + pow(bufferLocal->mediaImaginaria, 2));
+
+      //INICIO ZONA SECCIÓN ESCRITURA EN 2 BUFFER
+      EnterSC(&mutexVisibilidades);
+      almacenarDatos(bufferLocal, totalVisibilidades, datosVisibilidad[bufferLocal->id]);
+      ExitSC(&mutexVisibilidades);
+      //FIN SECCIÓN CRÍTICA
+    }
+}
+
 //Función que lee una línea de un archivo de texto desde un archivo
 //Entrada: Puntero al archivo del cuál se va a leer
 //Salida: Cadena de char
@@ -102,6 +171,9 @@ int checkDestination(double coordV, double coordU, int discWidth, int discCant){
     }
 }
 
+//FUNCION QUE INICIALIZA EN 0 UN ARREGLO BASADO EN UN LARGO.
+//ENTRADAS: ARRAY: ARREGLO A DEJAR EN 0, LARGO: LARGO DEL ARREGLO.
+//SALIDAS: VACIO.
 void inicializarCharArray(char* array, int largo){
     int i;
     for(i = 0; i < largo; i++){
@@ -109,6 +181,9 @@ void inicializarCharArray(char* array, int largo){
     }
 }
 
+//FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
+//ENTRADAS: VISIBILIDAD: LINEA DEL ARCHIVO DE TEXTO, discWidth: ANCHO DEL DISCO, DiscCant: CANTIDAD DE DISCOS.
+//SALIDA: RETORNO A FUNCION QUE DETERMINA EL DISCO DE LA VISIBILIDAD.
 int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
     int j = 0; //DECLARACION DE j PARA POSICIONAR DOUBLE EN ARREGLO.
@@ -155,6 +230,9 @@ void ExitSC(pthread_mutex_t * mutex)
     pthread_mutex_unlock(mutex);
 }
 
+//FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
+//ENTRADAS: VISIBILIDAD: LINEA DEL ARCHIVO DE TEXTO.
+//SALIDA: ARREGLO DE DOUBLE CON LOS DATOS DE LA Visibilidad.
 double* obtenerDatosVisibilidad(char* visibilidad){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
     int j = 0; //DECLARACION DE j PARA POSICIONAR DOUBLE EN ARREGLO.
@@ -193,6 +271,10 @@ Buffer * inicializarBuffer()
     Buffer * buffer = (Buffer*)malloc(sizeof(Buffer));
     buffer->id = 0;
     buffer->cantidad = 0;
+    buffer->mediaReal = 0;
+    buffer->mediaImaginaria = 0;
+    buffer->ruidoTotal = 0;
+    buffer->potencia = 0;
     buffer->estado = ABIERTO;
     buffer->full = 0;
     buffer->empty = 1;
@@ -204,6 +286,9 @@ Buffer * inicializarBuffer()
     return buffer;
 }
 
+//Función que inicializa la estructura comun de datos.
+//Entrada: Nada - utiliza datos globales
+//Salida: Puntero a la estructura comun de datos.
 Visibilidad * inicializarVisibilidad(){
     Visibilidad * visibilidad = (Visibilidad*)malloc(sizeof(Visibilidad));
     visibilidad->mediaReal = 0;
@@ -214,28 +299,14 @@ Visibilidad * inicializarVisibilidad(){
     return visibilidad;
 }
 
-double* procesarDatosBuffer(double real, double imaginaria, double ruido, int totalVisibilidades, Buffer *b){
-    int i;
-    double *result = (double*)malloc(sizeof(double)*4);
-    for(i = 0; i < b->cantidad; i++){
-      double* data = obtenerDatosVisibilidad(b->data[i]);
-      real = real + data[2];
-      imaginaria = imaginaria + data[3];
-      ruido = ruido + data[4];
-    }
-    totalVisibilidades = totalVisibilidades + b->cantidad;
-    result[0] = real;
-    result[1] = imaginaria;
-    result[2] = ruido;
-    result[3] = (double)totalVisibilidades;
-    return result;
-}
-
-void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, Visibilidad *visibilidad){
-    visibilidad->mediaReal = mediaReal;
-    visibilidad->mediaImaginaria = mediaImaginaria;
-    visibilidad->ruidoTotal = ruido;
-    visibilidad->potencia = potencia;
+//FUNCION QUE ALMACENA LOS DATOS DE LA ESTRUCTURA DE DATOS EN COMUN.
+//ENTRADA: B: MONITOR BUFFER, totalVisibilidades: CANTIDAD TOTAL DE VISIBILIDADES OBTENIDAS. VISIBILIDAD: PUNTERO A ESTA ESTRUCTURA.
+//SALIDA: VACIO.
+void almacenarDatos(Buffer *b, int totalVisibilidades, Visibilidad *visibilidad){
+    visibilidad->mediaReal = b->mediaReal;
+    visibilidad->mediaImaginaria = b->mediaImaginaria;
+    visibilidad->ruidoTotal = b->ruidoTotal;
+    visibilidad->potencia = b->potencia;
     visibilidad->totalVisibilidades = totalVisibilidades;
 }
 

@@ -8,6 +8,7 @@
 #define ABIERTO 1
 #define CERRADO 0
 
+//DEFINICION DE ESTRUCTURAS.
 typedef struct Visibilidad
 {
   int totalVisibilidades;
@@ -22,12 +23,19 @@ typedef struct Buffer
     int id;
     int cantidad;
     int estado;
+    double mediaReal;
+    double mediaImaginaria;
+    double ruidoTotal;
+    double potencia;
     char ** data;
     int full;
     int empty;
     pthread_mutex_t mutex;
     pthread_cond_t notFull, notEmpty;
 }Buffer;
+
+//DEFINICION DE CABECERAS DE FUNCIONES.
+void * hebra(void * buffer);
 
 char* readLine(FILE * file);
 
@@ -49,9 +57,7 @@ Buffer * inicializarBuffer();
 
 Visibilidad * inicializarVisibilidad();
 
-double* procesarDatosBuffer(double real, double imaginaria, double ruido, int totalVisibilidades, Buffer *b);
-
-void almacenarDatos(double mediaReal, double mediaImaginaria, double ruido, double potencia, int totalVisibilidades, Visibilidad *visibilidad);
+void almacenarDatos(Buffer *b, int totalVisibilidades, Visibilidad *visibilidad);
 
 void anadirDato(Buffer * b, char * line);
 
