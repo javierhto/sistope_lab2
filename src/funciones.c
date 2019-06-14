@@ -9,8 +9,8 @@ int bFlag;
 int tamanoBuffer;
 Visibilidad ** datosVisibilidad;
 
-//Función que inciializa la ejecuión de una hebra
-//Entrada:
+//Entrada: monitor buffer.
+//funcionalidad: Función que inciializa la ejecuión de una hebra
 //Salida: Nada, vacío
 void * hebra(void * buffer)
 {
@@ -77,8 +77,8 @@ void * hebra(void * buffer)
     }
 }
 
-//Función que lee una línea de un archivo de texto desde un archivo
 //Entrada: Puntero al archivo del cuál se va a leer
+//funcionalidad: Función que lee una línea de un archivo de texto desde un archivo
 //Salida: Cadena de char
 char* readLine(FILE * file){
   int i = 0;
@@ -117,6 +117,9 @@ char* readLine(FILE * file){
   return fixedLine;
 }
 
+//Entrada: Visibilidad: puntero a la estructura comun de datos, nombreArchivo: nombre del archivo a guardar, numDisco: numero del disco a guardar.
+//funcionalidad: Función que almacena en un archivo de texto los datos obtenidos por las visibilidades.
+//Salida: Vacio.
 void writeFile(Visibilidad* visibilidad, char* nombreArchivo, int numDisco){
   FILE *fp;
   int i;
@@ -157,7 +160,9 @@ void writeFile(Visibilidad* visibilidad, char* nombreArchivo, int numDisco){
   fclose(fp);
 }
 
-//Retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
+//Entrada: coordV: Coordenada v de la visibilidad, coordU: Coordenada U de la visibilidad, discWidth: Ancho de los discos, discCant: Cantidad de discos.
+//Funcionalidad: Retorna el int correspondiente al disco que le corresponde la coordenada de entrada.
+//Salida: el numero de disco al cual pertenecen las coordenadas.
 int checkDestination(double coordV, double coordU, int discWidth, int discCant){
     double distanceUV;
     double maxRadius = discWidth*discCant;
@@ -171,8 +176,8 @@ int checkDestination(double coordV, double coordU, int discWidth, int discCant){
     }
 }
 
-//FUNCION QUE INICIALIZA EN 0 UN ARREGLO BASADO EN UN LARGO.
 //ENTRADAS: ARRAY: ARREGLO A DEJAR EN 0, LARGO: LARGO DEL ARREGLO.
+//FUNCIONALIDAD: FUNCION QUE INICIALIZA EN 0 UN ARREGLO BASADO EN UN LARGO.
 //SALIDAS: VACIO.
 void inicializarCharArray(char* array, int largo){
     int i;
@@ -181,8 +186,8 @@ void inicializarCharArray(char* array, int largo){
     }
 }
 
-//FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
 //ENTRADAS: VISIBILIDAD: LINEA DEL ARCHIVO DE TEXTO, discWidth: ANCHO DEL DISCO, DiscCant: CANTIDAD DE DISCOS.
+//FUNCIONALIDAD: FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
 //SALIDA: RETORNO A FUNCION QUE DETERMINA EL DISCO DE LA VISIBILIDAD.
 int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
@@ -214,24 +219,24 @@ int obtenerVisibilidadRecibida(char* visibilidad, int discWidth, int discCant){
     return checkDestination(data[0], data[1], discWidth, discCant); //BUSCO EL DISCO AL QUE PERTENECE LA INFO.
 }
 
-//Función ENTERSC: Buffer
 //Entrada: Mutex buffer
+//Funcionalidad: Función ENTERSC: Buffer
 //Salida: Void
 void EnterSC(pthread_mutex_t * mutex)
 {
     pthread_mutex_lock(mutex);
 }
 
-//Función EXIT: Buffer
 //Entrada: Mutex buffer
+//Funcionalidad: Función EXIT: Buffer
 //Salida: Void
 void ExitSC(pthread_mutex_t * mutex)
 {
     pthread_mutex_unlock(mutex);
 }
 
-//FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
 //ENTRADAS: VISIBILIDAD: LINEA DEL ARCHIVO DE TEXTO.
+//FUNCIONALIDAD: FUNCION QUE OBTIENE LOS DATOS COMO DOUBLE DE LAS VISIBILIDADES RECIBIDAS.
 //SALIDA: ARREGLO DE DOUBLE CON LOS DATOS DE LA Visibilidad.
 double* obtenerDatosVisibilidad(char* visibilidad){
     int i; //DECLARACION DE i PARA EL CICLO FOR.
@@ -263,8 +268,8 @@ double* obtenerDatosVisibilidad(char* visibilidad){
     return data;
 }
 
-//Función que inicializa el buffer de un monitor
 //Entrada: Nada - utiliza datos globales
+//Funcionalidad: Función que inicializa el buffer de un monitor
 //Salida: Puntero a buffer del tamaño instanciado
 Buffer * inicializarBuffer()
 {
@@ -286,8 +291,8 @@ Buffer * inicializarBuffer()
     return buffer;
 }
 
-//Función que inicializa la estructura comun de datos.
 //Entrada: Nada - utiliza datos globales
+//Funcionalidad: Función que inicializa la estructura comun de datos.
 //Salida: Puntero a la estructura comun de datos.
 Visibilidad * inicializarVisibilidad(){
     Visibilidad * visibilidad = (Visibilidad*)malloc(sizeof(Visibilidad));
@@ -299,8 +304,8 @@ Visibilidad * inicializarVisibilidad(){
     return visibilidad;
 }
 
-//FUNCION QUE ALMACENA LOS DATOS DE LA ESTRUCTURA DE DATOS EN COMUN.
 //ENTRADA: B: MONITOR BUFFER, totalVisibilidades: CANTIDAD TOTAL DE VISIBILIDADES OBTENIDAS. VISIBILIDAD: PUNTERO A ESTA ESTRUCTURA.
+//FUNCIONALIDAD: FUNCION QUE ALMACENA LOS DATOS DE LA ESTRUCTURA DE DATOS EN COMUN.
 //SALIDA: VACIO.
 void almacenarDatos(Buffer *b, int totalVisibilidades, Visibilidad *visibilidad){
     visibilidad->mediaReal = b->mediaReal;
@@ -310,8 +315,8 @@ void almacenarDatos(Buffer *b, int totalVisibilidades, Visibilidad *visibilidad)
     visibilidad->totalVisibilidades = totalVisibilidades;
 }
 
-//Función que añade un dato a un buffer
 //Entrada: Puntero al buffer que se añadirá un dato
+//Funcionalidad: Función que añade un dato a un buffer
 //Salida: Vacío
 void anadirDato(Buffer * b, char * line)
 {
@@ -324,8 +329,8 @@ void anadirDato(Buffer * b, char * line)
     //printf("Cantidad de datos en el buffer: %i\n", b->cantidad);
 }
 
-//Función que añade un dato a un buffer
 //Entrada: Puntero al buffer que se añadirá un dato
+//Funcionalidad: Función que añade un dato a un buffer
 //Salida: Vacío
 //SECCIÓN CRÍTICA
 void vaciarBuffer(Buffer * b)
@@ -343,8 +348,8 @@ void vaciarBuffer(Buffer * b)
     b->empty = 1;
 }
 
-//Función que limpia la memoria utilizada por los buffer.
 //Entrada: Puntero al buffer que se añadirá un dato
+//Funcionalidad: Función que limpia la memoria utilizada por los buffer.
 //Salida: Vacío
 //FINAL DE PROGRAMA.
 void vaciarBufferSinReasignar(Buffer * b)
@@ -356,8 +361,8 @@ void vaciarBufferSinReasignar(Buffer * b)
     }
 }
 
-//Función debug que imprime los datos las visibilidades en pantalla
 //Entrada: nada
+//Funcionalidad: Función que imprime los datos las visibilidades procesadas por cada hebra en pantalla
 //Salida: por pantalla
 void mostrarVisibilidades()
 {
